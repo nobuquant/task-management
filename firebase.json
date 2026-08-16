@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "nobu-quant-task-tracking",
     "public": "out",
     "cleanUrls": true,
     "trailingSlash": false,
