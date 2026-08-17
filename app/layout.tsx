@@ -3,9 +3,9 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Atlas Board · Task Management",
+  title: "Nobu Quant tracking",
   description:
-    "A responsive Kanban and table task board with brainstorming, filters, checklists and team management.",
+    "Autonomous Quant Pipeline & Operational Task Board with 5-stage Human-AI workflow, automated agent triggers, and isolated demo preview deployments.",
 };
 
 export const viewport: Viewport = {
