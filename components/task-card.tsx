@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, CheckCircle2, ListChecks } from "lucide-react";
+import { Bot, CalendarDays, CheckCircle2, ExternalLink, GitBranch, ListChecks, Sparkles } from "lucide-react";
 import type { DragEvent } from "react";
 
 import type { Task, TaskStatus, TeamMember } from "@/lib/types";
@@ -41,6 +41,7 @@ export function TaskCard({
   const due = task.dueDate ? dueMeta(task.dueDate, today) : null;
   const preview = stripMarkdown(task.description);
   const isDone = task.status === "done";
+  const isAI = assignee?.isAI || assignee?.id === "cmo" || assignee?.id === "coo";
 
   return (
     <article
@@ -55,7 +56,20 @@ export function TaskCard({
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <PriorityBadge priority={task.priority} />
+        <div className="flex flex-wrap items-center gap-1.5">
+          <PriorityBadge priority={task.priority} />
+          {task.workflowStage && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700 ring-1 ring-inset ring-slate-200">
+              Stage {task.workflowStage}
+            </span>
+          )}
+          {isAI && (
+            <span className="inline-flex items-center gap-0.5 rounded-md bg-purple-50 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 ring-1 ring-inset ring-purple-200">
+              <Bot className="h-2.5 w-2.5 text-purple-600" />
+              Auto-Exec
+            </span>
+          )}
+        </div>
         <CardMenu
           task={task}
           onEdit={onEdit}
@@ -64,8 +78,7 @@ export function TaskCard({
         />
       </div>
 
-      {/* Stretched target: the whole card opens the editor, but only this
-          button lands in the tab order. */}
+      {/* Stretched target: the whole card opens the editor */}
       <button
         type="button"
         onClick={onEdit}
@@ -87,11 +100,32 @@ export function TaskCard({
         </p>
       )}
 
-      {task.tags.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap gap-1">
-          {task.tags.map((tag) => (
-            <TagChip key={tag} tag={tag} />
-          ))}
+      {/* Tags and Metadata */}
+      <div className="mt-2.5 flex flex-wrap items-center gap-1">
+        {task.tags.map((tag) => (
+          <TagChip key={tag} tag={tag} />
+        ))}
+        {task.snapshotVersion && (
+          <span className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-mono text-slate-600">
+            <GitBranch className="h-2.5 w-2.5 text-slate-400" />
+            {task.snapshotVersion}
+          </span>
+        )}
+      </div>
+
+      {/* Live Demo URL Badge */}
+      {task.demoUrl && (
+        <div className="mt-2.5">
+          <a
+            href={task.demoUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="relative z-10 inline-flex items-center gap-1 rounded-md bg-blue-50 px-2 py-1 text-[11px] font-medium text-blue-700 ring-1 ring-inset ring-blue-200 hover:bg-blue-100 transition-colors"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Live Demo Preview
+          </a>
         </div>
       )}
 

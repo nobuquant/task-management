@@ -1,8 +1,8 @@
 /**
- * Domain types for the task board.
+ * Domain types for the Nobu Quant tracking task board.
  *
  * Everything is intentionally serialisable (plain strings / numbers) so the
- * mock data can be rendered identically on the server and the client.
+ * data can be rendered identically on the server and the client.
  */
 
 export type TaskStatus = "backlog" | "todo" | "in-progress" | "review" | "done";
@@ -12,6 +12,19 @@ export type Priority = "low" | "medium" | "high" | "urgent";
 /** A `idea` is a lightweight brainstorm card; a `task` is a tracked unit of work. */
 export type ItemType = "idea" | "task";
 
+export type WorkflowStage = 1 | 2 | 3 | 4 | 5;
+
+export interface ExecutionReport {
+  id: string;
+  timestamp: string;
+  agent: "CMO" | "COO";
+  summary: string;
+  metrics: string;
+  demoUrl: string;
+  snapshotVersion: string;
+  codeSnippet?: string;
+}
+
 export interface TeamMember {
   id: string;
   name: string;
@@ -19,6 +32,7 @@ export interface TeamMember {
   initials: string;
   /** Tailwind classes used for the member's avatar chip. */
   accent: string;
+  isAI?: boolean;
 }
 
 export interface Subtask {
@@ -45,6 +59,15 @@ export interface Task {
   votes: number;
   votedByMe: boolean;
   createdAt: string;
+  
+  /** Stage 1..5 in the Human-AI Integrated Workflow */
+  workflowStage?: WorkflowStage;
+  /** Automated live preview demo URL */
+  demoUrl?: string | null;
+  /** Rollback snapshot version */
+  snapshotVersion?: string | null;
+  /** Autonomous Agent Execution Reports & Logs */
+  executionReports?: ExecutionReport[];
 }
 
 export interface ColumnMeta {
@@ -52,6 +75,8 @@ export interface ColumnMeta {
   emoji: string;
   title: string;
   description: string;
+  stageNumber: WorkflowStage;
+  stageName: string;
   /** Small colour accent used for the column dot + count pill. */
   dot: string;
   pill: string;
@@ -61,40 +86,50 @@ export const COLUMNS: ColumnMeta[] = [
   {
     id: "backlog",
     emoji: "💡",
-    title: "Brainstorm / Backlog",
-    description: "Raw ideas waiting to be shaped",
+    title: "Stage 1: Brainstorm / Backlog",
+    description: "Humans log ideas, tickers & hypotheses",
+    stageNumber: 1,
+    stageName: "Stage 1: Ideation",
     dot: "bg-violet-500",
     pill: "bg-violet-50 text-violet-700",
   },
   {
     id: "todo",
     emoji: "📋",
-    title: "To Do",
-    description: "Scoped and ready to pick up",
+    title: "Stage 2: To Do (Ready)",
+    description: "Scoped tasks ready for AI trigger or pickup",
+    stageNumber: 2,
+    stageName: "Stage 2: Processing & Demo Build",
     dot: "bg-slate-400",
     pill: "bg-slate-100 text-slate-600",
   },
   {
     id: "in-progress",
     emoji: "⚙️",
-    title: "In Progress",
-    description: "Actively being worked on",
+    title: "Stage 2/3: In Progress",
+    description: "Autonomous execution & active build",
+    stageNumber: 2,
+    stageName: "Stage 2: Execution",
     dot: "bg-blue-500",
     pill: "bg-blue-50 text-blue-700",
   },
   {
     id: "review",
     emoji: "🧪",
-    title: "Code Review / Testing",
-    description: "Awaiting review or QA",
+    title: "Stage 3: Review / Testing",
+    description: "Human review & live demo validation",
+    stageNumber: 3,
+    stageName: "Stage 3: Human Review",
     dot: "bg-amber-500",
     pill: "bg-amber-50 text-amber-700",
   },
   {
     id: "done",
     emoji: "🚀",
-    title: "Deployed / Done",
-    description: "Shipped to production",
+    title: "Stage 4/5: Deployed / Done",
+    description: "Shipped, logged, locked & archived",
+    stageNumber: 5,
+    stageName: "Stage 5: Complete & Archived",
     dot: "bg-emerald-500",
     pill: "bg-emerald-50 text-emerald-700",
   },

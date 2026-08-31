@@ -1,13 +1,17 @@
 "use client";
 
 import {
+  Bot,
   CalendarDays,
   Check,
+  ExternalLink,
   Eye,
+  GitBranch,
   Lightbulb,
   ListChecks,
   Pencil,
   Plus,
+  Sparkles,
   SquareCheck,
   Tag,
   Trash2,
@@ -23,12 +27,14 @@ import {
 
 import { COLUMNS, PRIORITIES, PRIORITY_META } from "@/lib/types";
 import type {
+  ExecutionReport,
   ItemType,
   Priority,
   Subtask,
   Task,
   TaskStatus,
   TeamMember,
+  WorkflowStage,
 } from "@/lib/types";
 import { cn, createId, subtaskProgress } from "@/lib/utils";
 
@@ -53,6 +59,10 @@ export interface TaskDraft {
   dueDate: string | null;
   tags: string[];
   subtasks: Subtask[];
+  workflowStage?: WorkflowStage;
+  demoUrl?: string | null;
+  snapshotVersion?: string | null;
+  executionReports?: ExecutionReport[];
 }
 
 const UNASSIGNED = "__unassigned__";
@@ -70,6 +80,10 @@ function initialDraft(target: EditorTarget): TaskDraft {
       dueDate: task.dueDate,
       tags: [...task.tags],
       subtasks: task.subtasks.map((subtask) => ({ ...subtask })),
+      workflowStage: task.workflowStage ?? (task.status === "backlog" ? 1 : 2),
+      demoUrl: task.demoUrl ?? null,
+      snapshotVersion: task.snapshotVersion ?? null,
+      executionReports: task.executionReports ? [...task.executionReports] : [],
     };
   }
   return {
@@ -82,6 +96,10 @@ function initialDraft(target: EditorTarget): TaskDraft {
     dueDate: null,
     tags: [],
     subtasks: [],
+    workflowStage: target.presetStatus === "backlog" ? 1 : 2,
+    demoUrl: null,
+    snapshotVersion: null,
+    executionReports: [],
   };
 }
 
@@ -107,28 +125,25 @@ export function TaskModal({
 
   const isEditing = target.task !== null;
   const titleError = touched && !draft.title.trim();
+  const isAI = draft.assigneeId === "cmo" || draft.assigneeId === "coo";
 
   const patch = (changes: Partial<TaskDraft>) =>
     setDraft((current) => ({ ...current, ...changes }));
 
-  /*
-   * Ideas live in the Brainstorm column by definition — keep the two fields in
-   * sync in both directions so the board never ends up with a stray idea card.
-   */
   const setType = (type: ItemType) =>
     patch(
       type === "idea"
-        ? { type, status: "backlog" }
-        : { type, status: draft.status === "backlog" ? "todo" : draft.status },
+        ? { type, status: "backlog", workflowStage: 1 }
+        : { type, status: draft.status === "backlog" ? "todo" : draft.status, workflowStage: 2 },
     );
 
-  const setStatus = (status: TaskStatus) =>
+  const setStatus = (status: TaskStatus) => {
+    const stageNum: WorkflowStage = status === "backlog" ? 1 : status === "todo" ? 2 : status === "in-progress" ? 2 : status === "review" ? 3 : 5;
     patch(
-      status === "backlog" ? { status } : { status, type: "task" as ItemType },
+      status === "backlog" ? { status, workflowStage: stageNum } : { status, type: "task" as ItemType, workflowStage: stageNum },
     );
+  };
 
-  // Focus the title on open, restore focus to the invoker on close, and stop
-  // the page behind the dialog from scrolling.
   useEffect(() => {
     const invoker = document.activeElement as HTMLElement | null;
     const { overflow } = document.body.style;
@@ -151,7 +166,6 @@ export function TaskModal({
     onSubmit({ ...draft, title: draft.title.trim() });
   };
 
-  /** Escape closes, ⌘/Ctrl + Enter saves, Tab stays inside the dialog. */
   const onKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.key === "Escape") {
       event.preventDefault();
@@ -192,7 +206,7 @@ export function TaskModal({
     },
     ...members.map((member) => ({
       value: member.id,
-      label: member.name,
+      label: `${member.name} (${member.role})`,
       hint: member.role,
       icon: <Avatar member={member} size="xs" />,
     })),
@@ -232,13 +246,21 @@ export function TaskModal({
         {/* Header */}
         <header className="flex items-center justify-between gap-3 border-b border-slate-200 px-5 py-4">
           <div className="min-w-0">
-            <h2 className="text-base font-semibold text-slate-900">
-              {isEditing ? "Edit card" : draft.type === "idea" ? "New idea" : "New task"}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-slate-900">
+                {isEditing ? "Edit card" : draft.type === "idea" ? "New idea" : "New task"}
+              </h2>
+              {isAI && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-bold text-purple-700 ring-1 ring-inset ring-purple-200">
+                  <Bot className="h-3 w-3 text-purple-600" />
+                  Autonomous Execution Trigger Active
+                </span>
+              )}
+            </div>
             <p className="mt-0.5 text-xs text-slate-400">
               {isEditing
-                ? "Update the details and save your changes."
-                : "Capture it now — you can refine it later."}
+                ? "Update details, workflow stage, and execution logs."
+                : "Capture it now — automated agents execute on assignment."}
             </p>
           </div>
           <button
@@ -253,6 +275,25 @@ export function TaskModal({
 
         {/* Body */}
         <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 scrollbar-slim">
+          
+          {/* Autonomous Execution Info Callout when assigned to CMO / COO */}
+          {isAI && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50/70 p-3.5 text-xs text-purple-900 space-y-2">
+              <div className="flex items-center justify-between font-bold">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-purple-600" />
+                  Autonomous Execution &amp; Live Demo Rule
+                </span>
+                <span className="rounded bg-purple-200/80 px-2 py-0.5 font-mono text-[11px] text-purple-800">
+                  STAGE {draft.workflowStage ?? 2}
+                </span>
+              </div>
+              <p className="text-purple-700 leading-relaxed">
+                Assigned to <strong>{draft.assigneeId?.toUpperCase()}</strong>. Automatically triggers code execution, state snapshotting, and an isolated web preview demo for testing without manual gating.
+              </p>
+            </div>
+          )}
+
           <Field label="Type">
             <div className="inline-flex rounded-lg bg-slate-100 p-1">
               <SegmentButton
@@ -281,7 +322,7 @@ export function TaskModal({
               placeholder={
                 draft.type === "idea"
                   ? "What if we…"
-                  : "e.g. Add rate limiting to the public API"
+                  : "e.g. Audited 1099 Tax Engine Preview"
               }
               className={cn(
                 "w-full rounded-lg border bg-white px-3 py-2.5 text-sm font-medium text-slate-900 shadow-xs transition-colors duration-150 outline-none placeholder:font-normal placeholder:text-slate-400",
@@ -375,6 +416,45 @@ export function TaskModal({
             </Field>
           </div>
 
+          {/* Workflow Stage & Live Demo Controls */}
+          <div className="grid gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100">
+            <Field label="Live Demo Preview URL" hint="Task-specific preview">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={draft.demoUrl ?? ""}
+                  onChange={(e) => patch({ demoUrl: e.target.value || null })}
+                  placeholder="https://nobu-quant--preview-task.web.app"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-mono text-slate-700 shadow-xs transition-colors duration-150 outline-none focus:border-slate-400"
+                />
+                {draft.demoUrl && (
+                  <a
+                    href={draft.demoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 p-2 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
+                    title="Open Live Demo"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                  </a>
+                )}
+              </div>
+            </Field>
+
+            <Field label="Rollback Snapshot Version" hint="State checkpoint">
+              <div className="flex items-center gap-2">
+                <GitBranch className="h-4 w-4 text-slate-400 shrink-0" />
+                <input
+                  type="text"
+                  value={draft.snapshotVersion ?? ""}
+                  onChange={(e) => patch({ snapshotVersion: e.target.value || null })}
+                  placeholder="v1.0.0-snapshot"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-mono text-slate-700 shadow-xs transition-colors duration-150 outline-none focus:border-slate-400"
+                />
+              </div>
+            </Field>
+          </div>
+
           <Field label="Tags" hint="Press Enter to add">
             <TagEditor tags={draft.tags} onChange={(tags) => patch({ tags })} />
           </Field>
@@ -390,6 +470,34 @@ export function TaskModal({
               onChange={(subtasks) => patch({ subtasks })}
             />
           </Field>
+
+          {/* Execution Reports Log Section (If any) */}
+          {draft.executionReports && draft.executionReports.length > 0 && (
+            <Field label="Autonomous Execution Reports & Logs">
+              <div className="space-y-2 max-h-48 overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                {draft.executionReports.map((rep) => (
+                  <div key={rep.id} className="rounded-lg bg-white p-2.5 shadow-xs border border-slate-200 space-y-1">
+                    <div className="flex items-center justify-between font-bold text-slate-800">
+                      <span className="flex items-center gap-1 text-purple-700">
+                        <Bot className="h-3.5 w-3.5" />
+                        {rep.agent} Report
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        {new Date(rep.timestamp).toLocaleTimeString()}
+                      </span>
+                    </div>
+                    <p className="text-slate-600">{rep.summary}</p>
+                    {rep.metrics && (
+                      <div className="font-mono text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded">
+                        {rep.metrics}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </Field>
+          )}
+
         </div>
 
         {/* Footer */}
@@ -452,17 +560,19 @@ function Field({
   children: ReactNode;
 }) {
   return (
-    <div>
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-slate-700">
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-xs font-medium">
+        <label className="text-slate-700">
           {label}
           {required && <span className="ml-0.5 text-rose-500">*</span>}
-          {hint && <span className="ml-2 font-normal text-slate-400">{hint}</span>}
-        </span>
-        {action}
+        </label>
+        <div className="flex items-center gap-2">
+          {error && <span className="text-rose-600">{error}</span>}
+          {hint && !error && <span className="text-slate-400">{hint}</span>}
+          {action}
+        </div>
       </div>
       {children}
-      {error && <p className="mt-1 text-xs font-medium text-rose-600">{error}</p>}
     </div>
   );
 }
@@ -475,16 +585,15 @@ function SegmentButton({
 }: {
   active: boolean;
   onClick: () => void;
-  icon: ReactNode;
+  icon?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-all duration-150",
+        "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-semibold transition-all duration-150",
         active
           ? "bg-white text-slate-900 shadow-xs"
           : "text-slate-500 hover:text-slate-900",
@@ -505,46 +614,52 @@ function TagEditor({
 }) {
   const [value, setValue] = useState("");
 
-  const add = () => {
-    const tag = value.trim().replace(/^#/, "").toLowerCase();
-    if (tag && !tags.includes(tag)) onChange([...tags, tag]);
+  const add = (candidate: string) => {
+    const clean = candidate.trim().toLowerCase().replace(/^#/, "");
+    if (!clean || tags.includes(clean)) return;
+    onChange([...tags, clean]);
     setValue("");
   };
 
+  const remove = (target: string) =>
+    onChange(tags.filter((tag) => tag !== target));
+
   return (
-    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 py-2 shadow-xs focus-within:border-slate-400">
-      <Tag className="h-4 w-4 shrink-0 text-slate-400" />
+    <div className="flex min-h-[2.75rem] flex-wrap items-center gap-1.5 rounded-lg border border-slate-200 bg-white p-2 shadow-xs focus-within:border-slate-400">
       {tags.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 rounded-md bg-slate-100 py-0.5 pl-2 pr-1 text-xs font-medium text-slate-700"
+          className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-700"
         >
           #{tag}
           <button
             type="button"
-            onClick={() => onChange(tags.filter((item) => item !== tag))}
+            onClick={() => remove(tag)}
             aria-label={`Remove tag ${tag}`}
-            className="rounded p-0.5 text-slate-400 transition-colors duration-150 hover:bg-slate-200 hover:text-slate-700"
+            className="rounded p-0.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700"
           >
             <X className="h-3 w-3" />
           </button>
         </span>
       ))}
-      <input
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
-        onBlur={add}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === ",") {
-            event.preventDefault();
-            add();
-          } else if (event.key === "Backspace" && !value && tags.length > 0) {
-            onChange(tags.slice(0, -1));
-          }
-        }}
-        placeholder={tags.length === 0 ? "design, api, bug…" : "Add another…"}
-        className="min-w-[7rem] flex-1 bg-transparent px-1 py-0.5 text-sm text-slate-700 outline-none placeholder:text-slate-400"
-      />
+      <div className="flex min-w-[8rem] flex-1 items-center gap-1">
+        <Tag className="h-3.5 w-3.5 text-slate-400" />
+        <input
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              add(value);
+            } else if (event.key === "Backspace" && !value && tags.length > 0) {
+              remove(tags[tags.length - 1]);
+            }
+          }}
+          onBlur={() => add(value)}
+          placeholder={tags.length === 0 ? "e.g. backend, ui, bug" : "Add tag…"}
+          className="min-w-0 flex-1 bg-transparent py-0.5 text-sm text-slate-700 outline-none placeholder:text-slate-400"
+        />
+      </div>
     </div>
   );
 }
